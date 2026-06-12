@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASTROGUARD AI</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        :root {
+            --bg-base: #02060d;
+            --panel-bg: rgba(6, 14, 25, 0.65);
+            --panel-border: rgba(0, 240, 255, 0.15);
+            
+            --cyan: #00e5ff;
+            --cyan-glow: rgba(0, 229, 255, 0.5);
+            --teal: #00ffaa;
+            --orange: #ff9d00;
+            --red: #ff3344;
+            --yellow: #ffdd00;
+            --green: #00ff44;
+            --green-glow: rgba(0, 255, 68, 0.5);
+            
+            --text-main: #e2f1ff;
+            --text-muted: #6b86a1;
+            
+            --font-heading: 'Orbitron', sans-serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            min-height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Background Effects */
+        .scanlines {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1));
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 100;
+            opacity: 0.3;
+        }
+
+        .background-particles {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at 50% 50%, #051324 0%, var(--bg-base) 100%);
+            z-index: -1;
+        }
+
+        /* Typography */
+        h1, h2, .section-title, .status-label {
+            font-family: var(--font-heading);
+            letter-spacing: 1px;
+        }
+
+        /* Layout */
+        .dashboard-container {
+            width: 98vw;
+            min-height: 96vh;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 10;
+        }
+
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--panel-border);
+            border-radius: 6px;
+            box-shadow: inset 0 0 20px rgba(0, 240, 255, 0.05), 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        /* Header */
+        .global-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            height: 60px;
+            flex-shrink: 0;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-icon {
+            font-size: 1.5rem;
+            color: var(--cyan);
+            text-shadow: 0 0 10px var(--cyan-glow);
+        }
+
+        .header-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--cyan);
+        }
+
+        .year {
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .header-center {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            font-family: var(--font-heading);
+            color: var(--green);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--green);
+            box-shadow: 0 0 8px var(--green-glow);
+            animation: pulse-dot 2s infinite;
+        }
+
+        .icon-btn {
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: color 0.3s, text-shadow 0.3s;
+        }
+
+        .icon-btn:hover {
+            color: var(--cyan);
+            text-shadow: 0 0 8px var(--cyan-glow);
+        }
+
+        /* Main Content */
+        .main-content {
+            display: flex;
+            gap: 12px;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            gap: 12px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--panel-border);
+        }
+
+        .panel-header h2 {
+            font-size: 1rem;
+            color: var(--text-main);
+        }
+
+        .panel-header.cyan-border { border-bottom-color: rgba(0, 229, 255, 0.4); }
+        .panel-header.orange-border { border-bottom-color: rgba(255, 157, 0, 0.4); }
+        .panel-header.cyan-border h2 { color: var(--cyan); }
+        .panel-header.orange-border h2 { color: var(--orange); }
+
+        .section-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .section-title {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        /* Feeds */
+        .feed-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 120px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        .scrollable::-webkit-scrollbar { width: 4px; }
+        .scrollable::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        .scrollable::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 2px; }
+
+        .feed-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85rem;
+            padding: 4px 8px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 4px;
+            border-left: 2px solid transparent;
+        }
+
+        .feed-item:hover {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .feed-indicator {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+        .feed-indicator.cyan { background: var(--cyan); box-shadow: 0 0 5px var(--cyan); }
+        .feed-indicator.teal { background: var(--teal); box-shadow: 0 0 5px var(--teal); }
+        .feed-indicator.orange { background: var(--orange); box-shadow: 0 0 5px var(--orange); }
+
+        .feed-label {
+            font-family: var(--font-heading);
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        .feed-label.red { color: var(--red); }
+        .feed-label.orange { color: var(--orange); }
+        .feed-label.yellow { color: var(--yellow); }
+
+        .feed-text { flex: 1; }
+        .feed-time { color: var(--text-muted); font-size: 0.75rem; }
+
+        /* Workflow */
+        .workflow-path {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            background: rgba(0,0,0,0.3);
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .workflow-path i { font-size: 0.6rem; }
+        .active-agent { color: var(--text-main); font-weight: 600; }
+        .cyan-glow { text-shadow: 0 0 8px var(--cyan-glow); }
+        .green-glow { text-shadow: 0 0 8px var(--green-glow); }
+
+        /* Visualization Containers */
+        .visual-container {
+            flex: 1;
+            min-height: 200px;
+            position: relative;
+            border: 1px solid var(--panel-border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .space-visualization {
+            width: 100%;
+            height: 100%;
+            background-color: #010205;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+                radial-gradient(circle at 85% 30%, rgba(255, 255, 255, 0.1) 2px, transparent 2px),
+                radial-gradient(circle at 50% 80%, rgba(0, 229, 255, 0.1) 150px, transparent 250px);
+            background-size: 100px 100px, 150px 150px, 100% 100%;
+            position: relative;
+        }
+
+        .map-visualization {
+            width: 100%;
+            height: 100%;
+            background: #0a0a0a;
+            position: relative;
+        }
+
+        .controls-overlay {
+            position: absolute;
+            z-index: 1000;
+            display: flex;
+            gap: 8px;
+        }
+        .top-right { top: 10px; right: 10px; }
+        .top-left { top: 10px; left: 10px; }
+
+        .map-ctrl-group {
+            display: flex;
+            flex-direction: column;
+            padding: 4px;
+            gap: 8px;
+        }
+        .map-ctrl-group i {
+            padding: 6px;
+            cursor: pointer;
+            text-align: center;
+        }
+        .map-ctrl-group i:hover { color: var(--cyan); }
+        .mt-2 { margin-top: 8px; }
+
+        /* Floating Elements */
+        .target-box {
+            position: absolute;
+            border: 1px dashed var(--cyan);
+            width: 40px; height: 40px;
+            border-radius: 4px;
+        }
+        .target-box.t1 { top: 20%; left: 30%; border-color: rgba(255,255,255,0.3); }
+        .target-box.t2 { bottom: 30%; left: 15%; border-color: rgba(255,255,255,0.3); }
+        .target-box.active { 
+            top: 40%; right: 40%; 
+            border: 1px solid var(--orange);
+            box-shadow: 0 0 15px rgba(255, 157, 0, 0.4);
+        }
+        .target-box.active::before {
+            content: ''; position: absolute; top: 50%; left: 50%; width: 4px; height: 4px;
+            background: var(--orange); border-radius: 50%; transform: translate(-50%, -50%);
+        }
+
+        .floating-chart {
+            position: absolute;
+            bottom: 20px; right: 20px;
+            width: 250px; height: 140px;
+            padding: 10px;
+            background: rgba(2, 6, 13, 0.85);
+        }
+        .chart-header {
+            display: flex; justify-content: space-between;
+            font-size: 0.7rem; color: var(--text-muted); margin-bottom: 5px;
+        }
+
+        .floating-minimap {
+            position: absolute;
+            bottom: 20px; right: 20px;
+            width: 180px; height: 120px;
+            padding: 5px;
+            z-index: 1000;
+            background: rgba(2, 6, 13, 0.85);
+        }
+        .minimap-header {
+            font-size: 0.65rem; color: var(--text-muted); margin-bottom: 4px; text-align: center;
+        }
+        .minimap-content {
+            width: 100%; height: calc(100% - 15px);
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect fill="%2305101a" width="100" height="100"/><circle cx="70" cy="40" r="3" fill="red"/><circle cx="30" cy="60" r="2" fill="orange"/></svg>') center/cover;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* Bottom Cards */
+        .workflow-cards {
+            flex-direction: row;
+            height: 40px;
+        }
+
+        .workflow-card {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            transition: all 0.3s;
+        }
+
+        .workflow-card i { font-size: 0.9rem; }
+
+        .workflow-card.active.cyan-border {
+            background: rgba(0, 229, 255, 0.1);
+            border-color: var(--cyan);
+            color: var(--cyan);
+            box-shadow: inset 0 0 10px rgba(0, 229, 255, 0.2);
+        }
+
+        .workflow-card.active.green-border {
+            background: rgba(0, 255, 68, 0.1);
+            border-color: var(--green);
+            color: var(--green);
+            box-shadow: inset 0 0 10px rgba(0, 255, 68, 0.2);
+        }
+
+        /* Status Bar */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 40px;
+            padding: 0 20px;
+            flex-shrink: 0;
+        }
+
+        .status-left {
+            display: flex; align-items: center; gap: 8px;
+            font-family: var(--font-heading); font-size: 0.8rem; color: var(--text-muted);
+        }
+        .status-icon { color: var(--text-main); }
+
+        .status-center {
+            display: flex; align-items: center; gap: 10px; font-size: 0.85rem;
+        }
+        .status-label.cyan { color: var(--cyan); font-weight: 600; }
+
+        .status-right {
+            display: flex; align-items: center; gap: 15px;
+        }
+
+        .progress-container {
+            width: 150px; height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px; overflow: hidden;
+        }
+
+        .progress-bar {
+            width: 75%; height: 100%;
+            background: linear-gradient(90deg, var(--teal), var(--green));
+            box-shadow: 0 0 10px var(--green);
+            animation: load-progress 2s infinite alternate;
+        }
+
+        .pulse-icon { color: var(--green); animation: pulse-opacity 1.5s infinite; }
+
+        /* Animations */
+        @keyframes pulse-dot {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 68, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(0, 255, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 68, 0); }
+        }
+
+        @keyframes load-progress {
+            0% { width: 70%; }
+            100% { width: 95%; }
+        }
+
+        @keyframes pulse-opacity {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; text-shadow: 0 0 10px var(--green); }
+        }
+
+        /* Custom map marker pulse */
+        .custom-div-icon {
+            background: transparent;
+            border: none;
+        }
+        .marker-pulse {
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            position: relative;
+        }
+        .marker-pulse::after {
+            content: "X";
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: white; font-weight: bold; font-family: sans-serif;
+            font-size: 14px; text-shadow: 0 0 5px black;
+        }
+        .marker-red { background: rgba(255, 51, 68, 0.6); box-shadow: 0 0 15px var(--red); border: 2px solid var(--red); }
+        .marker-orange { background: rgba(255, 157, 0, 0.6); box-shadow: 0 0 15px var(--orange); border: 2px solid var(--orange); }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .workflow-cards { display: none; }
+            .status-center { font-size: 0.75rem; }
+        }
+
+        @media (max-width: 768px) {
+            .main-content { flex-direction: column; overflow-y: auto; }
+            .panel { min-height: 600px; flex: none; }
+            .dashboard-container { height: auto; padding: 10px 0; }
+            body { overflow-y: auto; }
+            .status-bar { flex-direction: column; height: auto; padding: 10px; gap: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+    <div class="background-particles" id="particles"></div>
+
+    <div class="dashboard-container">
+        
+        <header class="global-header glass-panel">
+            <div class="header-left">
+                <i class="fa-solid fa-satellite-dish header-icon glow-cyan"></i>
+                <h1 class="header-title">ASTROGUARD AI <span class="year">2026</span></h1>
+            </div>
+            <div class="header-center">
+                <span class="header-subtitle">Agentic AI • Astronomy • Earth Observation</span>
+            </div>
+            <div class="header-right">
+                <div class="connection-status">
+                    <span class="status-dot green"></span>
+                    <span>LINK SECURE</span>
+                </div>
+                <i class="fa-solid fa-bell icon-btn"></i>
+                <i class="fa-solid fa-gear icon-btn"></i>
+            </div>
+        </header>
+
+        <main class="main-content">
+            
+            <section class="panel left-panel glass-panel">
+                <div class="panel-header cyan-border">
+                    <h2>COSMIC EXPLORATION : NOVA TRACKER</h2>
+                    <i class="fa-solid fa-expand panel-icon"></i>
+                </div>
+
+                <div class="section-container">
+                    <div class="section-title">OPEN SPACE MONITOR</div>
+                    <div class="feed-list scrollable">
+                        <div class="feed-item">
+                            <span class="feed-indicator cyan"></span>
+                            <span class="feed-text">NOVA candidate: GC-741 detected</span>
+                            <span class="feed-time">13m ago</span>
+                        </div>
+                        <div class="feed-item">
+                            <span class="feed-indicator teal"></span>
+                            <span class="feed-text">Exoplanet Transit confirmed: Kepler-186f</span>
+                            <span class="feed-time">31m ago</span>
+                        </div>
+                        <div class="feed-item">
+                            <span class="feed-indicator orange"></span>
+                            <span class="feed-text">Solar Flare alert: Class M detected</span>
+                            <span class="feed-time">1h ago</span>
+                        </div>
+                        <div class="feed-item">
+                            <span class="feed-indicator cyan"></span>
+                            <span class="feed-text">Asteroid trajectory updated: 2026-XQ</span>
+                            <span class="feed-time">2h ago</span>
+                        </div>
+                        <div class="feed-item">
+                            <span class="feed-indicator cyan"></span>
+                            <span class="feed-text">Deep-space anomaly found in Sector 4</span>
+                            <span class="feed-time">5h ago</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-container">
+                    <div class="section-title">AGENT WORKFLOW</div>
+                    <div class="workflow-path">
+                        <span>Ingestion Agent</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                        <span>Data-Cleaning Agent</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                        <span class="active-agent cyan-glow">Astrophysical Analyzer</span>
+                    </div>
+                </div>
+
+                <div class="section-container visual-container">
+                    <div class="space-visualization" id="space-viz">
+                        <div class="target-box t1"></div>
+                        <div class="target-box t2"></div>
+                        <div class="target-box t3 active"></div>
+                        
+                        <div class="controls-overlay top-right">
+                            <i class="fa-solid fa-eye icon-btn"></i>
+                            <i class="fa-solid fa-crosshairs icon-btn"></i>
+                            <i class="fa-solid fa-expand icon-btn"></i>
+                        </div>
+
+                        <div class="floating-chart glass-panel">
+                            <div class="chart-header">
+                                <span>Light curve</span>
+                                <i class="fa-solid fa-chart-line"></i>
+                            </div>
+                            <canvas id="lightCurveChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-container workflow-cards">
+                    <div class="workflow-card">
+                        <i class="fa-solid fa-database"></i>
+                        <span>Ingestion Agent</span>
+                    </div>
+                    <div class="workflow-card">
+                        <i class="fa-solid fa-filter"></i>
+                        <span>Data Cleaning Agent</span>
+                    </div>
+                    <div class="workflow-card active cyan-border">
+                        <i class="fa-solid fa-microscope"></i>
+                        <span>Astrophysical Analyzer Agent</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel right-panel glass-panel">
+                <div class="panel-header orange-border">
+                    <h2>PLANETARY SAFETY : EARTH DISASTER COMMAND</h2>
+                    <i class="fa-solid fa-expand panel-icon"></i>
+                </div>
+
+                <div class="section-container">
+                    <div class="section-title">TERRESTRIAL EVENTS</div>
+                    <div class="feed-list scrollable">
+                        <div class="feed-item">
+                            <span class="feed-label red">[CRITICAL]</span>
+                            <span class="feed-text">Wildfire predicted: Amazon Basin</span>
+                            <span class="feed-time">15m ago</span>
+                        </div>
+                        <div class="feed-item">
+                            <span class="feed-label orange">[HIGH]</span>
+                            <span class="feed-text">Coastal Flooding alert: Mumbai</span>
+                            <span class="feed-time">8m ago</span>
+                        </div>
+                        <div class="feed-item">
+                            <span class="feed-label yellow">[ALERT]</span>
+                            <span class="feed-text">Deforestation detected: Sumatra</span>
+                            <span class="feed-time">7m ago</span>
+                        </div>
+                        <div class="feed-item">
+                            <span class="feed-label orange">[HIGH]</span>
+                            <span class="feed-text">Cyclone formation detected: Bay of Bengal</span>
+                            <span class="feed-time">22m ago</span>
+                        </div>
+                        <div class="feed-item">
+                            <span class="feed-label red">[CRITICAL]</span>
+                            <span class="feed-text">Earthquake activity increased: Ring of Fire</span>
+                            <span class="feed-time">1h ago</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-container">
+                    <div class="section-title">AGENT WORKFLOW</div>
+                    <div class="workflow-path">
+                        <span>Geo-Spatial Ingestion</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                        <span>Disaster Prediction</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                        <span class="active-agent green-glow">Emergency Interdiction</span>
+                    </div>
+                </div>
+
+                <div class="section-container visual-container">
+                    <div class="map-visualization" id="map">
+                        <div class="controls-overlay top-left map-controls">
+                            <div class="map-ctrl-group glass-panel">
+                                <i class="fa-solid fa-plus"></i>
+                                <i class="fa-solid fa-minus"></i>
+                            </div>
+                            <div class="map-ctrl-group glass-panel mt-2">
+                                <i class="fa-solid fa-layer-group"></i>
+                                <i class="fa-solid fa-expand"></i>
+                            </div>
+                        </div>
+
+                        <div class="floating-minimap glass-panel">
+                            <div class="minimap-header">Generated map</div>
+                            <div class="minimap-content" id="minimap"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-container workflow-cards">
+                    <div class="workflow-card">
+                        <i class="fa-solid fa-satellite"></i>
+                        <span>Geo-Spatial Ingestion Agent</span>
+                    </div>
+                    <div class="workflow-card">
+                        <i class="fa-solid fa-bolt"></i>
+                        <span>Disaster Prediction Agent</span>
+                    </div>
+                    <div class="workflow-card active green-border">
+                        <i class="fa-solid fa-shield-heart"></i>
+                        <span>Emergency Interdiction Agent</span>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <footer class="status-bar glass-panel">
+            <div class="status-left">
+                <i class="fa-solid fa-microchip status-icon"></i>
+                <span>ASTROGUARD KERNEL</span>
+            </div>
+            <div class="status-center">
+                <span class="status-label cyan">LATEST AGENTIC DECISION:</span>
+                <span class="status-message">Flood mitigation protocols generated and pushed to Zone B</span>
+            </div>
+            <div class="status-right">
+                <div class="progress-container">
+                    <div class="progress-bar"></div>
+                </div>
+                <i class="fa-solid fa-angles-right pulse-icon"></i>
+            </div>
+        </footer>
+
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // 1. Initialize Chart.js (Left Panel)
+            const ctx = document.getElementById('lightCurveChart').getContext('2d');
+            
+            // Generate dummy curve data
+            const labels = Array.from({length: 30}, (_, i) => i);
+            const dataPoints = labels.map(i => {
+                if(i < 10) return 20 + Math.random() * 5;
+                if(i < 15) return 20 + Math.pow(i - 9, 2) * 2; 
+                return 70 - (i - 15) * 2 + Math.random() * 5; 
+            });
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Intensity',
+                        data: dataPoints,
+                        borderColor: '#00e5ff',
+                        backgroundColor: 'rgba(0, 229, 255, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 1,
+                        pointHoverRadius: 3,
+                        fill: true,
+                        tension: 0.4
+                    },{
+                        label: 'Baseline',
+                        data: labels.map(() => 22),
+                        borderColor: '#ff9d00',
+                        borderWidth: 1,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    },
+                    scales: {
+                        x: { display: false },
+                        y: { 
+                            display: true, 
+                            position: 'right',
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#6b86a1', font: { size: 9 } }
+                        }
+                    },
+                    layout: { padding: 0 }
+                }
+            });
+
+            // 2. Initialize Leaflet Map (Right Panel)
+            const map = L.map('map', {
+                zoomControl: false,
+                attributionControl: false
+            }).setView([15.0, 45.0], 3); // Centered between Africa and India
+
+            // Add Dark Matter tiles
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Custom Icon Generator
+            const createMarker = (type) => {
+                return L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `<div class="marker-pulse marker-${type}"></div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+            };
+
+            // Add Markers based on reference image
+            // Africa (Red - Wildfire/Critical)
+            L.marker([5.0, 20.0], { icon: createMarker('red') }).addTo(map);
+            
+            // India (Red - Coastal/Critical)
+            L.marker([19.0, 73.0], { icon: createMarker('red') }).addTo(map);
+            
+            // SE Asia (Orange - High)
+            L.marker([15.0, 105.0], { icon: createMarker('orange') }).addTo(map);
+
+            // Heatmap zones simulation using circles
+            L.circle([5.0, 20.0], {
+                color: 'rgba(255, 51, 68, 0.2)',
+                fillColor: '#ff3344',
+                fillOpacity: 0.1,
+                radius: 800000
+            }).addTo(map);
+
+            L.circle([15.0, 105.0], {
+                color: 'rgba(255, 157, 0, 0.2)',
+                fillColor: '#ff9d00',
+                fillOpacity: 0.1,
+                radius: 600000
+            }).addTo(map);
+
+            // 3. Simple UI Interactions
+            const uiButtons = document.querySelectorAll('.icon-btn, .map-ctrl-group i');
+            uiButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    this.style.color = 'white';
+                    setTimeout(() => { this.style.color = ''; }, 200);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
